@@ -14,12 +14,11 @@
     'id': {'class': 'alwaysVisible multiCheckbox', 'orderBy': false, 'title': false, 'html_before': tables.datatable_multiupdate_all()},
     'date': {'class': 'alwaysVisible', 'orderBy': 'begin'},
 } %}
+
 {% if showStartEndTime %}
     {% set columns = columns|merge({
-        'starttime': {'class': 'hidden-xs startTime', 'orderBy': 'begin'},
-        'MorningEnd': {'class': 'hidden-xs morningEndTime', 'orderBy': 'mEnd'},
-        'endtime': {'class': 'hidden-xs endTime', 'orderBy': 'end'},
-        'AfternoonEnd': {'class': 'hidden-xs afternoonEndTime', 'orderBy': 'aStart'},
+        'starttime': {'class': 'hidden-xs', 'orderBy': 'begin'},
+        'endtime': {'class': 'hidden-xs', 'orderBy': 'end'}
     }) %}
 {% endif %}
 {% set columns = columns|merge({'duration': ''}) %}
@@ -106,38 +105,15 @@
                 <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'date') }}">{{ entry.begin|date_short }}</td>
 
                 {% if showStartEndTime %}
-                    <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'starttime1') }}">{{ entry.begin|time }}</td>
-                    <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'endtime1') }}">
+                    <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'starttime') }}">{{ entry.begin|time }}</td>
+                    <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'endtime') }}">
                         {% if entry.end %}
                             {{ entry.end|time }}
                         {% else %}
                             &dash;
                         {% endif %}
                     </td>
-{#                    {{ dump(entry) }}#}
-                    <td class="text-nowrap">
-                        {% if entry.mBegin == entry.mEnd %}
-                            &dash;
-                        {% else %}
-                            {{ entry.mBegin|time }}
-                        {% endif %}
-                    </td>
-                    <td class="text-nowrap">
-                        {% if entry.mBegin == entry.mEnd %}
-                            &dash;
-                        {% else %}
-                            {{ entry.mEnd|time }}
-                        {% endif %}
-                    </td>
                 {% endif %}
-
-                <!-- Remove table header label -->
-                <script>
-                    $('.startTime').text('Morning Start');
-                    $('.endTime').text('Afternoon Start');
-                    $('.morningEndTime').text('Morning End');
-                    $('.afternoonEndTime').text('Afternoon End');
-                </script>
 
                 {% if entry.end %}
                     <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'duration') }}">{{ entry.duration|duration }}</td>
@@ -179,7 +155,7 @@
                         {{ widgets.label_user(entry.user) }}
                     </td>
                 {% endif %}
-
+                
                 <td class="{{ tables.data_table_column_class(tableName, columns, 'tags') }}">{{ widgets.tag_list(entry.tags) }}</td>
                 {% for field in metaColumns %}
                     <td class="text-nowrap {{ tables.data_table_column_class(tableName, columns, 'mf_' ~ field.name) }}">

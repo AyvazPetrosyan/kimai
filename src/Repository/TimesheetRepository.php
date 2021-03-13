@@ -45,44 +45,35 @@ class TimesheetRepository extends EntityRepository
     public const STATS_QUERY_ACTIVE = 'active';
     public const STATS_QUERY_MONTHLY = 'monthly';
 
-    public function updateTimSheetDurations()
+    public function updateTimSheetDurations($timeList)
     {
         $connection = $this->getEntityManager()->getConnection();
 
-        $sqlIds = 'SELECT
-                      k.id,
-                      k.`aprem_start_time` AS start_noon,
-                      k.`aprem_end_time` AS end_noon,
-                      k.`morning_start_time` AS start_morning,
-                      k.`morning_end_time` AS end_morning
-                    FROM
-                      `kimai2_timesheet` AS k';
-        $sqlIdsResultList = $connection->fetchAll($sqlIds);
-
         $durationList = [];
-        $durationKey = 0;
-        foreach ($sqlIdsResultList as $sqlResultKey => $sqlResult) {
-            $durationList[$durationKey]['id'] = $sqlResult['id'];
-            $morningDiff = abs(strtotime($sqlResult['end_morning']) - strtotime($sqlResult['start_morning']));
-            $nonDiff = abs(strtotime($sqlResult['end_noon']) - strtotime($sqlResult['start_noon']));
-            $durationList[$durationKey]['duration'] = $morningDiff + $nonDiff;
-            $durationKey++;
+
+        $durationList['id'] = $timeList['id'];
+        $morningDiff = abs(strtotime($timeList['mEnd']) - strtotime($timeList['mStart']) );
+        $nonDiff = abs(strtotime($timeList['aEnd']) - strtotime($timeList['aStart']));
+        if ($timeList['halfday']) {
+            $durationList['duration'] = $morningDiff;
+        } else {
+            $durationList['duration'] = $morningDiff + $nonDiff;
+        }
+        if ($durationList['duration'] > 999999999) {
+            $durationList['duration'] = 999999999;
         }
 
-        foreach($durationList as $duration) {
-            $id = $duration['id'];
-            $diff = $duration['duration'];
-            $sqlUpdate = "UPDATE `kimai2_timesheet` SET duration = $diff WHERE id = $id";
-            $connection->query($sqlUpdate);
-        }
+        $id = $durationList['id'];
+        $diff = $durationList['duration'];
+        $sqlUpdate = "UPDATE `kimai2_timesheet` SET duration = $diff WHERE id = $id";
+        $connection->query($sqlUpdate);
+
+        /*echo "$nonDiff + $morningDiff ";
+        echo '<pre>';
+        print_r($durationList);
+        die;*/
 
         return true;
-    }
-
-    private function customDebug($param) {
-        echo '<pre>';
-        print_r($param);
-        die;
     }
 
     /**
@@ -373,7 +364,8 @@ class TimesheetRepository extends EntityRepository
         $qb = $this->getEntityManager()->createQueryBuilder();
 
         $qb->select('SUM(t.rate) as rate, SUM(t.duration) as duration, MONTH(t.begin) as month, YEAR(t.begin) as year')
-            ->from(Timesheet::class, 't');
+            ->from(Timesheet::class, 't')
+        ;
 
         if (!empty($begin)) {
             $qb->andWhere($qb->expr()->gte('t.begin', ':from'))
@@ -407,15 +399,15 @@ class TimesheetRepository extends EntityRepository
             if (!isset($years[$curYear])) {
                 $year = new Year($curYear);
                 for ($i = 1; $i < 13; $i++) {
-                    $month = $i < 10 ? '0' . $i : (string)$i;
+                    $month = $i < 10 ? '0' . $i : (string) $i;
                     $year->setMonth(new Month($month));
                 }
                 $years[$curYear] = $year;
             }
 
             $month = new Month($statRow['month']);
-            $month->setTotalDuration((int)$statRow['duration'])
-                ->setTotalRate((float)$statRow['rate']);
+            $month->setTotalDuration((int) $statRow['duration'])
+                ->setTotalRate((float) $statRow['rate']);
             $years[$curYear]->setMonth($month);
         }
 
@@ -450,12 +442,14 @@ class TimesheetRepository extends EntityRepository
             ->setParameter('end', $end)
             ->leftJoin('t.activity', 'a')
             ->leftJoin('t.project', 'p')
-            ->leftJoin('p.customer', 'c');
+            ->leftJoin('p.customer', 'c')
+        ;
 
         if (null !== $user) {
             $qb
                 ->andWhere($qb->expr()->eq('t.user', ':user'))
-                ->setParameter('user', $user);
+                ->setParameter('user', $user)
+            ;
         }
 
         $timesheets = $qb->getQuery()->getResult();
@@ -512,7 +506,8 @@ class TimesheetRepository extends EntityRepository
                     $detailsId =
                         $result->getProject()->getCustomer()->getId()
                         . '_' . $result->getProject()->getId()
-                        . '_' . $result->getActivity()->getId();
+                        . '_' . $result->getActivity()->getId()
+                    ;
 
                     if (!isset($results[$dateKey]['details'][$detailsId])) {
                         $results[$dateKey]['details'][$detailsId] = [
@@ -530,8 +525,8 @@ class TimesheetRepository extends EntityRepository
                 $beginTmp = $newDateBegin;
 
                 // yes, we only want to compare the day, not the time
-                if ((int)$end->format('Ymd') < (int)$newDateBegin->format('Ymd')) {
-                    break 1;
+                if ((int) $end->format('Ymd') < (int) $newDateBegin->format('Ymd')) {
+                    break;
                 }
             } while ($dateKey !== $dateKeyEnd);
         }
@@ -560,8 +555,8 @@ class TimesheetRepository extends EntityRepository
 
         // prefill the array
         $tmp = clone $end;
-        $until = (int)$begin->format('Ymd');
-        while ((int)$tmp->format('Ymd') >= $until) {
+        $until = (int) $begin->format('Ymd');
+        while ((int) $tmp->format('Ymd') >= $until) {
             $last = clone $tmp;
             $days[$last->format('Ymd')] = new Day($last, 0, 0.00);
             $tmp->modify('-1 day');
@@ -573,7 +568,7 @@ class TimesheetRepository extends EntityRepository
             $dateTime = new DateTime();
             $dateTime->setDate($statRow['year'], $statRow['month'], $statRow['day']);
             $dateTime->setTime(0, 0, 0);
-            $day = new Day($dateTime, (int)$statRow['duration'], (float)$statRow['rate']);
+            $day = new Day($dateTime, (int) $statRow['duration'], (float) $statRow['rate']);
             $day->setDetails($statRow['details']);
             $dateKey = $dateTime->format('Ymd');
             // make sure entries from other timezones are filtered
@@ -719,8 +714,9 @@ class TimesheetRepository extends EntityRepository
             ->resetDQLPart('select')
             ->resetDQLPart('orderBy')
             // faster then using "distinct id", as the user field is a separate (and smaller) index
-            ->select($qb->expr()->count('t.user'));
-        $counter = (int)$qb->getQuery()->getSingleScalarResult();
+            ->select($qb->expr()->count('t.user'))
+        ;
+        $counter = (int) $qb->getQuery()->getSingleScalarResult();
 
         $qb = $this->getQueryBuilderForQuery($query);
 
@@ -767,7 +763,8 @@ class TimesheetRepository extends EntityRepository
 
         $qb
             ->select('t')
-            ->from(Timesheet::class, 't');
+            ->from(Timesheet::class, 't')
+        ;
 
         $orderBy = $query->getOrderBy();
         switch ($orderBy) {
@@ -952,7 +949,8 @@ class TimesheetRepository extends EntityRepository
             ->groupBy('a.id', 'p.id')
             ->orderBy('maxid', 'DESC')
             ->setMaxResults($limit)
-            ->setParameter('visible', true, PDO::PARAM_BOOL);
+            ->setParameter('visible', true, PDO::PARAM_BOOL)
+        ;
 
         if (null !== $user) {
             $qb->andWhere('t.user = :user')
@@ -976,7 +974,8 @@ class TimesheetRepository extends EntityRepository
         $qb->select('t')
             ->from(Timesheet::class, 't')
             ->andWhere($qb->expr()->in('t.id', $ids))
-            ->orderBy('t.end', 'DESC');
+            ->orderBy('t.end', 'DESC')
+        ;
 
         return $this->getHydratedResultsByQuery($qb, true);
     }
@@ -1028,7 +1027,8 @@ class TimesheetRepository extends EntityRepository
                 )
             )
             ->setParameter('user', $timesheet->getUser())
-            ->setParameter('activity', $timesheet->getActivity());
+            ->setParameter('activity', $timesheet->getActivity())
+        ;
         $results = $qb->getQuery()->getResult();
 
         $qb = $this->getEntityManager()->createQueryBuilder();
@@ -1047,7 +1047,8 @@ class TimesheetRepository extends EntityRepository
                 )
             )
             ->setParameter('user', $timesheet->getUser())
-            ->setParameter('project', $timesheet->getProject());
+            ->setParameter('project', $timesheet->getProject())
+        ;
         $results = array_merge($results, $qb->getQuery()->getResult());
 
         $qb = $this->getEntityManager()->createQueryBuilder();
@@ -1066,7 +1067,8 @@ class TimesheetRepository extends EntityRepository
                 )
             )
             ->setParameter('user', $timesheet->getUser())
-            ->setParameter('customer', $timesheet->getProject()->getCustomer());
+            ->setParameter('customer', $timesheet->getProject()->getCustomer())
+        ;
         $results = array_merge($results, $qb->getQuery()->getResult());
 
         return $results;
@@ -1102,7 +1104,8 @@ class TimesheetRepository extends EntityRepository
             ->andWhere($qb->expr()->isNotNull('t.end'))
             ->andWhere($or)
             ->setParameter('begin', $begin)
-            ->setParameter('user', $timesheet->getUser()->getId());
+            ->setParameter('user', $timesheet->getUser()->getId())
+        ;
 
         // if we edit an existing entry, make sure we do not find "the same entry" when only updating eg. the description
         if ($timesheet->getId() !== null) {
@@ -1110,7 +1113,7 @@ class TimesheetRepository extends EntityRepository
         }
 
         try {
-            $result = (int)$qb->getQuery()->getSingleScalarResult();
+            $result = (int) $qb->getQuery()->getSingleScalarResult();
         } catch (Exception $ex) {
             return true;
         }

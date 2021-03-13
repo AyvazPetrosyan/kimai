@@ -120,7 +120,6 @@ class TimesheetFixtures extends Fixture implements DependentFixtureInterface
                     false
                 );
 
-
                 $all++;
                 $manager->persist($entry);
             }
@@ -232,12 +231,6 @@ class TimesheetFixtures extends Fixture implements DependentFixtureInterface
             $end = clone $start;
             $end = $end->modify('+ ' . (rand(self::MIN_MINUTES_PER_ENTRY, self::MAX_MINUTES_PER_ENTRY)) . ' minutes');
 
-//            $aBegin = clone $start;
-//            $aEnd = clone $start;
-//            $aBegin = $aBegin->modify('+ ' . (rand(self::MIN_MINUTES_PER_ENTRY, self::MAX_MINUTES_PER_ENTRY)) . ' minutes');
-//            $aEnd = $aEnd->modify('+ ' . (rand(self::MIN_MINUTES_PER_ENTRY, self::MAX_MINUTES_PER_ENTRY)) . ' minutes');
-//            $duration = (($end->getTimestamp() - $start->getTimestamp()) + ($aEnd->getTimestamp() - $aBegin->getTimestamp()));
-
             $duration = $end->getTimestamp() - $start->getTimestamp();
             $hourlyRate = (float) $user->getPreferenceValue(UserPreference::HOURLY_RATE);
             $rate = Util::calculateRate($hourlyRate, $duration);
@@ -245,8 +238,7 @@ class TimesheetFixtures extends Fixture implements DependentFixtureInterface
             $entry
                 ->setEnd($end)
                 ->setRate($rate)
-                ->setDuration($duration)
-            ;
+                ->setDuration($duration);
         } else {
             // running entries should be short
             $newBegin = clone $entry->getBegin();
